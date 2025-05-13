@@ -1,22 +1,22 @@
+import os
 import re
 import yt_dlp
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatAction
-from aiogram.types import (
-    Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
-)
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.client.default import DefaultBotProperties
-from dotenv import load_dotenv
-import os
 
-# Load environment variables
-load_dotenv()
+# Load token from Railway environment variable
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# Logging setup
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN environment variable is not set!")
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
