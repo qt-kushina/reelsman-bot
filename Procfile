@@ -1,1 +1,1 @@
-start: reelsman.py
+start: python reelsman.py
