@@ -32,16 +32,24 @@ def get_direct_video_url(url: str) -> str or None:
         'format': 'best[height<=720]/best',
         'quiet': True,
         'no_warnings': True,
-        'skip_download': True
+        'skip_download': True,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
+        }
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    for attempt in range(2):  # Try up to 2 times
         try:
-            info = ydl.extract_info(url, download=False)
-            return info.get("url")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                logging.info(f"[SUCCESS] Video title: {info.get('title')}")
+                return info.get("url")
         except Exception as e:
-            logging.error(f"[ERROR] URL extraction failed: {e}")
-            return None
+            logging.warning(f"[RETRY {attempt + 1}] Failed to extract video URL: {e}")
+            asyncio.sleep(1)  # short wait before retry
+
+    logging.error("[FAILURE] All attempts to extract video URL failed.")
+    return None
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
@@ -92,7 +100,7 @@ async def handle_video_message(message: Message):
         )
         logging.info("[RESPONSE] Direct link sent successfully.")
     else:
-        await message.reply("❌ Couldn't extract the video link. It may be private, age-restricted, or unsupported.")
+        await message.reply("Chud Gaye Ghuru 😢")
         logging.warning("[RESPONSE] Failed to extract video link.")
 
 async def set_commands():
