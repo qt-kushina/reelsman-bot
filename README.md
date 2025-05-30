@@ -1,62 +1,47 @@
-# 🚀 Instagram Video Link Extractor Bot
+# 🎬 Instagram Video Downloader Bot  
+[![Telegram Bot](https://img.shields.io/badge/Launch%20Bot-@YourInstaDLBot-2CA5E0?logo=telegram&style=for-the-badge)](https://t.me/YourInstaDLBot)
 
-A lightweight, lightning-fast Telegram bot that extracts **direct download links** from public Instagram videos — powered by Python & aiogram. No ads, no fluff — just clean links.
-
----
-
-## ✨ Features
-
-- ✅ Supports public Instagram video links (Reels, Posts, etc.)
-- ⚡️ Fast & bandwidth-efficient (only ~10–50KB per request)
-- 🧠 Smart filtering — ignores non-Instagram or unsupported links
-- 🤖 Telegram-native UX with inline buttons & auto-replies
-- 🔐 No data stored — completely stateless
+> **Fast. Lightweight. Hassle-free.**  
+> Send any public Instagram video link and get a direct download URL—no re-uploads, no bandwidth drain.
 
 ---
 
-## 📌 Supported Platforms
+## ✨ Key Features
 
-Only links from:
-
-- `instagram.com`  
-*(Reels, posts, videos — public content only)*
-
----
-
-## 🛠 Tech Stack
-
-- **Python 3.12+**
-- **[aiogram v3](https://docs.aiogram.dev/)**
-- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)**
-- **Railway** (for cloud deployment)
+- 📥 **Direct Links** — Extracts best-quality video URL up to 720p  
+- 🔄 **Retry Logic** — Automatic re-attempts on first failure  
+- 🔒 **No Downloads** — Doesn’t consume your storage or bandwidth  
+- 🤖 **Silent Mode** — Only responds when you send a valid link  
+- 📊 **Usage Analytics** — Logs successes and failures for easy debugging  
 
 ---
 
-## 🚧 Environment Setup
+## 🛠️ Tech Stack
 
-> ⚙️ You only need one environment variable to get started.
-
-| Variable   | Description              |
-|------------|--------------------------|
-| `BOT_TOKEN` | Your Telegram bot token from [@BotFather](https://t.me/BotFather) |
-
-Set this in your [Railway](https://railway.app) project under **Variables**.
+- **Language:** Python 3.10+  
+- **Framework:** [aiogram](https://docs.aiogram.dev/) (async Telegram bot)  
+- **Downloader:** [yt-dlp](https://github.com/yt-dlp/yt-dlp)  
+- **Hosting:** Railway (or any Python-friendly host)  
+- **Logging:** Python’s built-in `logging` module  
 
 ---
 
-## 🚀 Deploy to Railway (1-click setup)
-
-1. **Fork** this repo
-2. Head to [Railway](https://railway.app)
-3. Click **“New Project” → “Deploy from GitHub Repo”**
-4. Set the `BOT_TOKEN` in the **Environment Variables** tab
-5. You're done! Your bot is now live.
-
----
-
-## ⚙️ Local Development
-
-### Install Requirements
+## 🚀 Quick Start
 
 ```bash
+# 1. Clone the repo
+git clone https://github.com/your-username/instadl-bot.git
+cd instadl-bot
+
+# 2. Create & activate virtual environment
+python3 -m venv venv
+source venv/bin/activate       # Windows: venv\Scripts\activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
+
+# 4. Set your Telegram Bot Token
+export BOT_TOKEN="123456789:ABCDEF-your-telegram-bot-token"
+
+# 5. Run the bot
+python bot.py
