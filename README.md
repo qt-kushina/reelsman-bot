@@ -1,5 +1,5 @@
 # 🎬 Instagram Video Downloader Bot  
-[![Telegram Bot](https://img.shields.io/badge/Launch%20Bot-@YourInstaDLBot-2CA5E0?logo=telegram&style=for-the-badge)](https://t.me/YourInstaDLBot)
+[![Telegram Bot](https://img.shields.io/badge/Launch%20Bot-@ReelsManBot-2CA5E0?logo=telegram&style=for-the-badge)](https://t.me/YourInstaDLBot)
 
 > **Fast. Lightweight. Hassle-free.**  
 > Send any public Instagram video link and get a direct download URL—no re-uploads, no bandwidth drain.
@@ -26,22 +26,3 @@
 
 ---
 
-## 🚀 Quick Start
-
-```bash
-# 1. Clone the repo
-git clone https://github.com/your-username/instadl-bot.git
-cd instadl-bot
-
-# 2. Create & activate virtual environment
-python3 -m venv venv
-source venv/bin/activate       # Windows: venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Set your Telegram Bot Token
-export BOT_TOKEN="123456789:ABCDEF-your-telegram-bot-token"
-
-# 5. Run the bot
-python bot.py
