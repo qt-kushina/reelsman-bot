@@ -41,7 +41,7 @@ You can deploy your own version of Quizy Dude.
 ## 👤 Author
 
 Developed by **Asadul Islam**  
-Telegram: [@quizydudebot](https://t.me/quizydudebot)
+Telegram: [@asad_ofc](https://t.me/asad_ofc)
 
 ---
 
