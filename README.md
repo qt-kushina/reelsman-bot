@@ -26,3 +26,28 @@
 
 ---
 
+## 📦 Deploy Your Own Instance
+
+You can deploy your own version of Quizy Dude.
+
+1. Clone the repository  
+2. Set your bot token in the environment  
+3. Deploy using Railway or any Python-supporting platform
+
+> For deployment support, feel free to open an issue or pull request.
+
+---
+
+## 👤 Author
+
+Developed by **Asadul Islam**  
+Telegram: [@quizydudebot](https://t.me/quizydudebot)
+
+---
+
+## 📄 License
+
+This project is open-source under the **MIT License**.  
+Feel free to use, modify, and share with proper attribution.
+
+---
