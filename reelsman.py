@@ -3,18 +3,16 @@ import re
 import yt_dlp
 import asyncio
 import logging
+from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatAction
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.client.default import DefaultBotProperties
 
-# Load token from Railway environment variable
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is not set!")
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -34,11 +32,11 @@ def get_direct_video_url(url: str) -> str or None:
         'no_warnings': True,
         'skip_download': True,
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
         }
     }
 
-    for attempt in range(2):  # Try up to 2 times
+    for attempt in range(2):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -46,7 +44,7 @@ def get_direct_video_url(url: str) -> str or None:
                 return info.get("url")
         except Exception as e:
             logging.warning(f"[RETRY {attempt + 1}] Failed to extract video URL: {e}")
-            asyncio.sleep(1)  # short wait before retry
+            asyncio.sleep(1)
 
     logging.error("[FAILURE] All attempts to extract video URL failed.")
     return None
@@ -70,10 +68,10 @@ async def cmd_start(message: Message):
 
     text = (
         "<b>🎬 Instagram Video Downloader</b>\n\n"
-        "Simply send an Instagram video link and I'll reply with a direct download link.\n\n"
-        "✅ No bandwidth usage\n"
-        "⚠️ Private or age-restricted videos aren't supported\n\n"
-        "Enjoy lightning-fast video access!"
+        "Send any Instagram video link, and I'll give u a direct download link.\n\n"
+        "✅ No bandwidth use\n"
+        "❌ Private videos not supported\n\n"
+        "Enjoy fast downloads!"
     )
     await message.answer(text, reply_markup=keyboard)
 
@@ -84,33 +82,41 @@ async def handle_video_message(message: Message):
         return
 
     url = url_match.group(1)
-
     if not is_supported_url(url):
         return
 
     logging.info(f"[REQUEST] Instagram URL received: {url}")
-
     await bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
     direct_url = get_direct_video_url(url)
     if direct_url:
-        await message.reply(
-            f"<a href=\"{direct_url}\">ㅤ</a>",
-            parse_mode="HTML"
-        )
-        logging.info("[RESPONSE] Direct link sent successfully.")
+        await message.reply(f"<a href=\"{direct_url}\">ㅤ</a>", parse_mode="HTML")
+        logging.info("[RESPONSE] Direct link sent.")
     else:
         await message.reply("Chud Gaye Ghuru 😢")
-        logging.warning("[RESPONSE] Failed to extract video link.")
+        logging.warning("[RESPONSE] Extraction failed.")
 
 async def set_commands():
     await bot.set_my_commands([
         BotCommand(command="start", description="Bot info & how to use")
     ])
 
+# Health check endpoint
+async def health_check(request):
+    return web.Response(text="OK")
+
 async def main():
     await set_commands()
-    logging.info("Bot is running...")
+
+    # Start aiohttp server for Render health check
+    app = web.Application()
+    app.router.add_get("/healthz", health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, port=int(os.environ.get("PORT", 10000)))
+    await site.start()
+
+    logging.info("Bot is live and polling...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
