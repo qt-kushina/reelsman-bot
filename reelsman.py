@@ -15,7 +15,7 @@ from aiogram.types import (
 )
 from aiogram.client.default import DefaultBotProperties
 
-# ───────────────────────────────────────────────────────── CONFIG
+# ───────────────────────────────────────────── CONFIG
 BOT_TOKEN  = os.getenv("BOT_TOKEN")
 OWNER_ID   = 5290407067
 USERS_FILE = Path("users.txt")
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp  = Dispatcher()
 
-# ───────────────────────────────────────────────────────── HELPERS
+# ───────────────────────────────────────────── HELPERS
 def load_users() -> set[int]:
     return {int(x) for x in USERS_FILE.read_text().splitlines()} if USERS_FILE.exists() else set()
 
@@ -51,7 +51,7 @@ def owner_only(func):
         return await func(message, *args, **kwargs)
     return wrapper
 
-# ───────────────────────────────────────────────────────── URL / yt-dlp
+# ───────────────────────────────────────────── URL / yt-dlp
 VIDEO_URL_REGEX = r'(https?://(?:www\.)?[^\s]+)'
 SUPPORTED_DOMAINS = [
     'instagram.com', 'tiktok.com', 'twitter.com', 'x.com', 'facebook.com', 'fb.watch',
@@ -99,24 +99,32 @@ async def get_direct_video_url(url: str) -> str | None:
     logger.error(f"[FAIL] Could not extract from {url}")
     return None
 
-# ───────────────────────────────────────────────────────── HANDLERS
+# ───────────────────────────────────────────── HANDLERS
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
     save_user(message.chat.id)
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("Updates", url="https://t.me/WorkGlows"),
-         InlineKeyboardButton("Support", url="https://t.me/TheCryptoElders")],
-        [InlineKeyboardButton("Add Me To Your Group",
-                              url=f"https://t.me/{(await bot.me()).username}?startgroup=true")]
-    ])
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Updates", url="https://t.me/WorkGlows"),
+                InlineKeyboardButton(text="Support", url="https://t.me/TheCryptoElders"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Add Me To Your Group",
+                    url=f"https://t.me/{(await bot.me()).username}?startgroup=true",
+                )
+            ],
+        ]
+    )
     await message.answer(
         "<b>🎬 Multi-Platform Video Downloader</b>\n\n"
         "Send any supported link, I'll return a direct download URL.\n"
         "Over 50 sites supported.\n\n"
         "✅ Fast  ❌ Private/paid videos not supported",
-        reply_markup=kb
+        reply_markup=kb,
     )
 
 @dp.message(F.text.regexp(r'^/broadcast\s+.+'))
@@ -157,7 +165,7 @@ async def handle_video_message(message: Message):
         await message.reply("😢 Couldn't fetch that one. Try again later.")
         logger.error(f"[LINK FAIL] {url}")
 
-# ───────────────────────────────────────────────────────── STARTUP & HEALTH
+# ───────────────────────────────────────────── STARTUP & HEALTH
 async def set_commands():
     try:
         await bot.set_my_commands(
@@ -169,7 +177,7 @@ async def set_commands():
     except Exception as e:
         logger.error(f"[COMMANDS] Failed to set commands: {e}")
 
-async def health_check(_): 
+async def health_check(_):
     return web.Response(text="OK")
 
 async def main():
