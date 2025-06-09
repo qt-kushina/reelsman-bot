@@ -4,10 +4,9 @@ import yt_dlp
 import asyncio
 import logging
 from aiohttp import web
-from aiogram import Bot, Dispatcher, F
-from aiogram.enums import ChatAction
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
-from aiogram.client.default import DefaultBotProperties
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ChatAction, ParseMode
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -15,20 +14,16 @@ if not BOT_TOKEN:
 
 OWNER_ID = 5290407067
 USERS_FILE = "users.txt"
+VIDEO_URL_REGEX = r'(https?://[^\s]+)'
+SUPPORTED_DOMAINS = ['instagram.com']
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
-dp = Dispatcher()
-
-VIDEO_URL_REGEX = r'(https?://[^\s]+)'
-SUPPORTED_DOMAINS = ['instagram.com']
-
 def is_supported_url(url: str) -> bool:
     return any(domain in url for domain in SUPPORTED_DOMAINS)
 
-def get_direct_video_url(url: str) -> str or None:
+def get_direct_video_url(url: str) -> str | None:
     ydl_opts = {
         'format': 'best[height<=720]/best',
         'quiet': True,
@@ -61,22 +56,16 @@ def save_user(user_id: int):
             with open(USERS_FILE, "a") as f:
                 f.write(f"{user_id}\n")
 
-@dp.message(F.text == "/start")
-async def cmd_start(message: Message):
-    save_user(message.from_user.id)
-    await bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    save_user(user_id)
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="Updates", url="https://t.me/WorkGlows"),
-            InlineKeyboardButton(text="Support", url="https://t.me/TheCryptoElders")
-        ],
-        [
-            InlineKeyboardButton(
-                text="Add Me To Your Group",
-                url=f"https://t.me/{(await bot.me()).username}?startgroup=true"
-            )
-        ]
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Updates", url="https://t.me/WorkGlows"),
+         InlineKeyboardButton("Support", url="https://t.me/TheCryptoElders")],
+        [InlineKeyboardButton("Add Me To Your Group",
+                              url=f"https://t.me/{context.bot.username}?startgroup=true")]
     ])
 
     text = (
@@ -86,20 +75,19 @@ async def cmd_start(message: Message):
         "❌ Private videos not supported\n\n"
         "Enjoy fast downloads!"
     )
-    await message.answer(text, reply_markup=keyboard)
+    await update.message.reply_html(text, reply_markup=keyboard)
 
-@dp.message(F.text.startswith("/send"))
-async def secret_broadcast(message: Message):
-    if message.from_user.id != OWNER_ID:
-        return  # Ignore non-owner users
+async def secret_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return
 
-    content = message.text.replace("/send", "", 1).strip()
+    content = update.message.text.replace("/send", "", 1).strip()
     if not content:
-        await message.reply("Usage: /send Your message here")
+        await update.message.reply_text("Usage: /send Your message here")
         return
 
     if not os.path.exists(USERS_FILE):
-        await message.reply("No users to broadcast.")
+        await update.message.reply_text("No users to broadcast.")
         return
 
     sent_count = 0
@@ -108,16 +96,16 @@ async def secret_broadcast(message: Message):
 
     for uid in users:
         try:
-            await bot.send_message(chat_id=int(uid), text=content)
+            await context.bot.send_message(chat_id=int(uid), text=content)
             sent_count += 1
         except Exception as e:
             logging.warning(f"Failed to send message to {uid}: {e}")
 
-    await message.reply(f"Message sent to {sent_count} users.")
+    await update.message.reply_text(f"Message sent to {sent_count} users.")
 
-@dp.message()
-async def handle_video_message(message: Message):
-    url_match = re.search(VIDEO_URL_REGEX, message.text or "")
+async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text or ""
+    url_match = re.search(VIDEO_URL_REGEX, text)
     if not url_match:
         return
 
@@ -126,38 +114,43 @@ async def handle_video_message(message: Message):
         return
 
     logging.info(f"[REQUEST] Instagram URL received: {url}")
-    await bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
 
     direct_url = get_direct_video_url(url)
     if direct_url:
-        await message.reply(f"<a href=\"{direct_url}\">ㅤ</a>", parse_mode="HTML")
+        await update.message.reply_html(f'<a href="{direct_url}">ㅤ</a>')
         logging.info("[RESPONSE] Direct link sent.")
     else:
-        await message.reply("Chud Gaye Ghuru 😢")
+        await update.message.reply_text("Chud Gaye Ghuru 😢")
         logging.warning("[RESPONSE] Extraction failed.")
 
-async def set_commands():
-    await bot.set_my_commands([
-        BotCommand(command="start", description="Bot info & how to use")
-        # /send intentionally omitted from command list
-    ])
-
-# Health check endpoint
 async def health_check(request):
     return web.Response(text="OK")
 
-async def main():
-    await set_commands()
+async def set_commands(bot):
+    await bot.set_my_commands([
+        BotCommand("start", "Bot info & how to use"),
+    ])
 
+async def main():
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    await set_commands(application.bot)
+
+    application.add_handler(CommandHandler("start", cmd_start))
+    application.add_handler(CommandHandler("send", secret_broadcast))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_video))
+
+    # Health check route
     app = web.Application()
     app.router.add_get("/healthz", health_check)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, port=int(os.environ.get("PORT", 10000)))
+    site = web.TCPSite(runner, port=int(os.getenv("PORT", 10000)))
     await site.start()
 
     logging.info("Bot is live and polling...")
-    await dp.start_polling(bot)
+    await application.run_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
