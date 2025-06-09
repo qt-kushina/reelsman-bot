@@ -7,7 +7,12 @@ from pathlib import Path
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatAction
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    BotCommand,
+)
 from aiogram.client.default import DefaultBotProperties
 
 # ───────────────────────────────────────────────────────── CONFIG
@@ -64,12 +69,8 @@ def is_supported_url(url: str) -> bool:
     return any(d in url for d in SUPPORTED_DOMAINS)
 
 async def get_direct_video_url(url: str) -> str | None:
-    """
-    Returns a direct video/audio link or None.
-    Retries up to 3× with 1-second pauses.
-    """
+    """Return a direct playable URL or None. Retries 3×."""
     ydl_opts = {
-        # try merged 1080p first, fall back automatically
         'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
         'quiet': True,
         'no_warnings': True,
@@ -84,16 +85,13 @@ async def get_direct_video_url(url: str) -> str | None:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                # Many extractors put the playable link in info["url"]
                 if info.get("url"):
                     return info["url"]
-                # Some give a "formats" list – pick the first
                 if info.get("formats"):
                     return info["formats"][0]["url"]
-                # Playlists: grab first entry
                 if info.get("entries"):
-                    first = info["entries"][0]
-                    return first.get("url") or (first.get("formats") or [{}])[0].get("url")
+                    entry = info["entries"][0]
+                    return entry.get("url") or (entry.get("formats") or [{}])[0].get("url")
         except Exception as e:
             logger.warning(f"[RETRY {attempt}] yt-dlp error: {e}")
             await asyncio.sleep(1)
@@ -161,10 +159,15 @@ async def handle_video_message(message: Message):
 
 # ───────────────────────────────────────────────────────── STARTUP & HEALTH
 async def set_commands():
-    await bot.set_my_commands([
-        BotCommand("start", "Bot info & how to use"),
-        BotCommand("broadcast", "(owner) send message"),
-    ])
+    try:
+        await bot.set_my_commands(
+            commands=[
+                BotCommand(command="start", description="Bot info & how to use"),
+                BotCommand(command="broadcast", description="(owner) send message"),
+            ]
+        )
+    except Exception as e:
+        logger.error(f"[COMMANDS] Failed to set commands: {e}")
 
 async def health_check(_): 
     return web.Response(text="OK")
