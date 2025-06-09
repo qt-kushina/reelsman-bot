@@ -3,7 +3,7 @@ import re
 import yt_dlp
 import asyncio
 import logging
-from pathlib import Path                 # NEW
+from pathlib import Path
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatAction
@@ -14,8 +14,8 @@ from aiogram.client.default import DefaultBotProperties
 # CONFIG
 # ──────────────────────────────────────────────────────────────────────────────
 BOT_TOKEN  = os.getenv("BOT_TOKEN")
-OWNER_ID   = 5290407067                       # << your Telegram user-id
-USERS_FILE = Path("users.txt")                # simple persistent storage
+OWNER_ID   = 5290407067
+USERS_FILE = Path("users.txt")
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is not set!")
@@ -50,66 +50,25 @@ def owner_only(func):
     return wrapper
 
 # ──────────────────────────────────────────────────────────────────────────────
-# URL-GRAB LOGIC (unchanged, trimmed for brevity)
+# URL-GRAB LOGIC
 # ──────────────────────────────────────────────────────────────────────────────
 VIDEO_URL_REGEX = r'(https?://[^\s]+)'
 SUPPORTED_DOMAINS = [
-    'instagram.com',
-    'tiktok.com',
-    'twitter.com',
-    'x.com',
-    'facebook.com',
-    'fb.watch',
-    'youtube.com',
-    'youtu.be',
-    'reddit.com',
-    'pinterest.com',
-    'threads.net',
-    'dailymotion.com',
-    'likee.video',
-    'vimeo.com',
-    'kwai.com',
-    'bilibili.com',
-    'streamable.com',
-    'twitch.tv',
-    'tumblr.com',
-    'triller.co',
-    'youku.com',
-    'vk.com',
-    'odnoklassniki.ru',
-    '9gag.com',
-    'imgur.com',
-    'imdb.com',
-    'bandcamp.com',
-    'soundcloud.com',
-    'mixcloud.com',
-    'tnaflix.com',
-    'pornhub.com',
-    'xvideos.com',
-    'xnxx.com',
-    'spankbang.com',
-    'onlyfans.com',
-    'fansly.com',
-    'rumble.com',
-    'bitchute.com',
-    'peertube.tv',
-    'tubi.tv',
-    'vlive.tv',
-    'funimation.com',
-    'crunchyroll.com',
-    'metacafe.com',
-    'ted.com',
-    'brighteon.com',
-    'odysee.com',
-    'newgrounds.com',
-    'mediasite.com',
-    'locals.com',
+    'instagram.com', 'tiktok.com', 'twitter.com', 'x.com', 'facebook.com', 'fb.watch',
+    'youtube.com', 'youtu.be', 'reddit.com', 'pinterest.com', 'threads.net', 'dailymotion.com',
+    'likee.video', 'vimeo.com', 'kwai.com', 'bilibili.com', 'streamable.com', 'twitch.tv',
+    'tumblr.com', 'triller.co', 'youku.com', 'vk.com', 'odnoklassniki.ru', '9gag.com',
+    'imgur.com', 'imdb.com', 'bandcamp.com', 'soundcloud.com', 'mixcloud.com', 'tnaflix.com',
+    'pornhub.com', 'xvideos.com', 'xnxx.com', 'spankbang.com', 'onlyfans.com', 'fansly.com',
+    'rumble.com', 'bitchute.com', 'peertube.tv', 'tubi.tv', 'vlive.tv', 'funimation.com',
+    'crunchyroll.com', 'metacafe.com', 'ted.com', 'brighteon.com', 'odysee.com', 'newgrounds.com',
+    'mediasite.com', 'locals.com',
 ]
 
 def is_supported_url(url: str) -> bool:
     return any(domain in url for domain in SUPPORTED_DOMAINS)
 
-def get_direct_video_url(url: str) -> str | None:
+async def get_direct_video_url(url: str) -> str | None:
     ydl_opts = {
         'format': 'best[height<=1080]/best',
         'quiet': True,
@@ -134,7 +93,7 @@ def get_direct_video_url(url: str) -> str | None:
 # ──────────────────────────────────────────────────────────────────────────────
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
-    save_user(message.chat.id)                       # ← NEW
+    save_user(message.chat.id)
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -154,9 +113,8 @@ async def cmd_start(message: Message):
     )
 
 @dp.message(F.text.regexp(r'^/broadcast\s+.+'))
-@owner_only                                          # ← NEW
+@owner_only
 async def cmd_broadcast(message: Message):
-    """Owner-only: /broadcast your text"""
     broadcast_text = message.text.partition(' ')[2].strip()
     if not broadcast_text:
         await message.reply("⚠️ Usage: /broadcast <text>")
@@ -175,7 +133,7 @@ async def cmd_broadcast(message: Message):
 
 @dp.message()
 async def handle_video_message(message: Message):
-    save_user(message.chat.id)                       # ← NEW (captures non-/start users)
+    save_user(message.chat.id)
     url_match = re.search(VIDEO_URL_REGEX, message.text or "")
     if not url_match:
         return
@@ -183,7 +141,7 @@ async def handle_video_message(message: Message):
     if not is_supported_url(url):
         return
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-    direct_url = get_direct_video_url(url)
+    direct_url = await get_direct_video_url(url)
     if direct_url:
         await message.reply(f"<a href='{direct_url}'>ㅤ</a>", parse_mode="HTML")
     else:
@@ -195,17 +153,22 @@ async def handle_video_message(message: Message):
 async def set_commands():
     await bot.set_my_commands([
         BotCommand(command="start", description="Bot info & how to use"),
-        BotCommand(command="broadcast", description="(owner) send msg"),   # shows only to you
+        BotCommand(command="broadcast", description="(owner) send msg"),
     ])
 
-async def health_check(request): return web.Response(text="OK")
+async def health_check(request): 
+    return web.Response(text="OK")
 
 async def main():
     await set_commands()
-    app = web.Application(); app.router.add_get("/healthz", health_check)
-    runner = web.AppRunner(app); await runner.setup()
-    site = web.TCPSite(runner, port=int(os.getenv("PORT", 10000))); await site.start()
-    logger.info("Bot is live…"); await dp.start_polling(bot)
+    app = web.Application()
+    app.router.add_get("/healthz", health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, port=int(os.getenv("PORT", 10000)))
+    await site.start()
+    logger.info("Bot is live…")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
