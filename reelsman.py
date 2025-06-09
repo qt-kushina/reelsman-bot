@@ -3,189 +3,170 @@ import re
 import yt_dlp
 import asyncio
 import logging
-from pathlib import Path
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.enums import ChatAction
-from aiogram.types import (
-    Message,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    BotCommand,
-)
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram.client.default import DefaultBotProperties
 
-# ───────────────────────────────────────────── CONFIG
-BOT_TOKEN  = os.getenv("BOT_TOKEN")
-OWNER_ID   = 5290407067
-USERS_FILE = Path("users.txt")
-
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is not set!")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-)
+OWNER_ID = 5290407067
+USERS_FILE = "users.txt"
+
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
-dp  = Dispatcher()
+dp = Dispatcher()
 
-# ───────────────────────────────────────────── HELPERS
-def load_users() -> set[int]:
-    return {int(x) for x in USERS_FILE.read_text().splitlines()} if USERS_FILE.exists() else set()
+# Enhanced Instagram URL regex
+VIDEO_URL_REGEX = r"(https?://(?:www\.)?instagram\.com/(?:reel|reels|tv|p|stories|reels/audio)/[^\s/?#&]+)"
 
-def save_user(chat_id: int) -> None:
-    users = load_users()
-    if chat_id not in users:
-        users.add(chat_id)
-        USERS_FILE.write_text("\n".join(map(str, users)))
-        logger.info(f"[STORE] New user {chat_id}")
-
-def owner_only(func):
-    async def wrapper(message: Message, *args, **kwargs):
-        if message.from_user.id != OWNER_ID:
-            await message.reply("🚫 Not for you.")
-            return
-        return await func(message, *args, **kwargs)
-    return wrapper
-
-# ───────────────────────────────────────────── URL / yt-dlp
-VIDEO_URL_REGEX = r'(https?://(?:www\.)?[^\s]+)'
+# Supported Instagram content types
 SUPPORTED_DOMAINS = [
-    'instagram.com', 'tiktok.com', 'twitter.com', 'x.com', 'facebook.com', 'fb.watch',
-    'youtube.com', 'youtu.be', 'reddit.com', 'pinterest.com', 'threads.net', 'dailymotion.com',
-    'likee.video', 'vimeo.com', 'kwai.com', 'bilibili.com', 'streamable.com', 'twitch.tv',
-    'tumblr.com', 'triller.co', 'youku.com', 'vk.com', 'odnoklassniki.ru', '9gag.com',
-    'imgur.com', 'imdb.com', 'bandcamp.com', 'soundcloud.com', 'mixcloud.com', 'tnaflix.com',
-    'pornhub.com', 'xvideos.com', 'xnxx.com', 'spankbang.com', 'onlyfans.com', 'fansly.com',
-    'rumble.com', 'bitchute.com', 'peertube.tv', 'tubi.tv', 'vlive.tv', 'funimation.com',
-    'crunchyroll.com', 'metacafe.com', 'ted.com', 'brighteon.com', 'odysee.com', 'newgrounds.com',
-    'mediasite.com', 'locals.com',
+    "instagram.com/reel/",
+    "instagram.com/reels/",
+    "instagram.com/reels/audio/",
+    "instagram.com/p/",
+    "instagram.com/stories/",
+    "instagram.com/tv/"
 ]
 
 def is_supported_url(url: str) -> bool:
-    return any(d in url for d in SUPPORTED_DOMAINS)
+    return any(domain in url for domain in SUPPORTED_DOMAINS)
 
-async def get_direct_video_url(url: str) -> str | None:
-    """Return a direct playable URL or None. Retries 3×."""
+def get_direct_video_url(url: str) -> str or None:
     ydl_opts = {
-        'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
+        'format': 'best[height<=720]/best',
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
-        'noplaylist': True,
-        'retries': 3,
-        'geo_bypass': True,
-        'http_headers': {'User-Agent': 'Mozilla/5.0'},
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        }
     }
-
-    for attempt in range(1, 4):
+    for attempt in range(2):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                if info.get("url"):
-                    return info["url"]
-                if info.get("formats"):
-                    return info["formats"][0]["url"]
-                if info.get("entries"):
-                    entry = info["entries"][0]
-                    return entry.get("url") or (entry.get("formats") or [{}])[0].get("url")
+                logging.info(f"[SUCCESS] Video title: {info.get('title')}")
+                return info.get("url")
         except Exception as e:
-            logger.warning(f"[RETRY {attempt}] yt-dlp error: {e}")
-            await asyncio.sleep(1)
-
-    logger.error(f"[FAIL] Could not extract from {url}")
+            logging.warning(f"[RETRY {attempt + 1}] Failed to extract video URL: {e}")
+            asyncio.sleep(1)
+    logging.error("[FAILURE] All attempts to extract video URL failed.")
     return None
 
-# ───────────────────────────────────────────── HANDLERS
+def save_user(user_id: int):
+    if not os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "w") as f:
+            f.write(f"{user_id}\n")
+    else:
+        with open(USERS_FILE, "r") as f:
+            existing_users = f.read().splitlines()
+        if str(user_id) not in existing_users:
+            with open(USERS_FILE, "a") as f:
+                f.write(f"{user_id}\n")
+
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
-    save_user(message.chat.id)
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    save_user(message.from_user.id)
+    await bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="Updates", url="https://t.me/WorkGlows"),
-                InlineKeyboardButton(text="Support", url="https://t.me/TheCryptoElders"),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="Add Me To Your Group",
-                    url=f"https://t.me/{(await bot.me()).username}?startgroup=true",
-                )
-            ],
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Updates", url="https://t.me/WorkGlows"),
+            InlineKeyboardButton(text="Support", url="https://t.me/TheCryptoElders")
+        ],
+        [
+            InlineKeyboardButton(
+                text="Add Me To Your Group",
+                url=f"https://t.me/{(await bot.me()).username}?startgroup=true"
+            )
         ]
-    )
-    await message.answer(
-        "<b>🎬 Multi-Platform Video Downloader</b>\n\n"
-        "Send any supported link, I'll return a direct download URL.\n"
-        "Over 50 sites supported.\n\n"
-        "✅ Fast  ❌ Private/paid videos not supported",
-        reply_markup=kb,
-    )
+    ])
 
-@dp.message(F.text.regexp(r'^/broadcast\s+.+'))
-@owner_only
-async def cmd_broadcast(message: Message):
-    msg = message.text.partition(' ')[2].strip()
-    if not msg:
-        await message.reply("⚠️ Usage: /broadcast <text>")
+    text = (
+        "<b>🎬 Instagram Video Downloader</b>\n\n"
+        "Send any Instagram video link, and I'll give u a direct download link.\n\n"
+        "✅ No bandwidth use\n"
+        "❌ Private videos not supported\n\n"
+        "Enjoy fast downloads!"
+    )
+    await message.answer(text, reply_markup=keyboard)
+
+@dp.message(F.text.startswith("/send"))
+async def secret_broadcast(message: Message):
+    if message.from_user.id != OWNER_ID:
+        return  # Not authorized
+
+    content = message.text.replace("/send", "", 1).strip()
+    if not content:
+        await message.reply("Usage: /send Your message here")
         return
 
-    users = load_users()
-    sent = failed = 0
+    if not os.path.exists(USERS_FILE):
+        await message.reply("No users to broadcast.")
+        return
+
+    sent_count = 0
+    with open(USERS_FILE, "r") as f:
+        users = f.read().splitlines()
+
     for uid in users:
         try:
-            await bot.send_message(uid, msg)
-            sent += 1
+            await bot.send_message(chat_id=int(uid), text=content)
+            sent_count += 1
         except Exception as e:
-            logger.warning(f"[BCAST FAIL] {uid}: {e}")
-            failed += 1
-    await message.reply(f"✅ Sent: {sent}\n❌ Failed: {failed}")
+            logging.warning(f"Failed to send message to {uid}: {e}")
+
+    await message.reply(f"Message sent to {sent_count} users.")
 
 @dp.message()
 async def handle_video_message(message: Message):
-    save_user(message.chat.id)
-    match = re.search(VIDEO_URL_REGEX, message.text or "")
-    if not match:
+    url_match = re.search(VIDEO_URL_REGEX, message.text or "")
+    if not url_match:
         return
-    url = match.group(1)
+
+    url = url_match.group(1)
     if not is_supported_url(url):
         return
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-    direct = await get_direct_video_url(url)
-    if direct:
-        await message.reply(direct, disable_web_page_preview=True)
-        logger.info(f"[LINK] Sent for {url}")
+    logging.info(f"[REQUEST] Instagram URL received: {url}")
+    await bot.send_chat_action(chat_id=message.chat.id, action=ChatAction.TYPING)
+
+    direct_url = get_direct_video_url(url)
+    if direct_url:
+        await message.reply(f"<a href=\"{direct_url}\">ㅤ</a>", parse_mode="HTML")
+        logging.info("[RESPONSE] Direct link sent.")
     else:
-        await message.reply("😢 Couldn't fetch that one. Try again later.")
-        logger.error(f"[LINK FAIL] {url}")
+        await message.reply("Chud Gaye Ghuru 😢")
+        logging.warning("[RESPONSE] Extraction failed.")
 
-# ───────────────────────────────────────────── STARTUP & HEALTH
 async def set_commands():
-    try:
-        await bot.set_my_commands(
-            commands=[
-                BotCommand(command="start", description="Bot info & how to use"),
-                BotCommand(command="broadcast", description="(owner) send message"),
-            ]
-        )
-    except Exception as e:
-        logger.error(f"[COMMANDS] Failed to set commands: {e}")
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Bot info & how to use")
+        # /send is hidden on purpose
+    ])
 
-async def health_check(_):
+# Health check endpoint for Render/Vercel
+async def health_check(request):
     return web.Response(text="OK")
 
 async def main():
     await set_commands()
-    app = web.Application(); app.router.add_get("/healthz", health_check)
-    runner = web.AppRunner(app); await runner.setup()
-    site = web.TCPSite(runner, port=int(os.getenv("PORT", 10000))); await site.start()
-    logger.info("Bot is live…")
+
+    app = web.Application()
+    app.router.add_get("/healthz", health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, port=int(os.environ.get("PORT", 10000)))
+    await site.start()
+
+    logging.info("Bot is live and polling...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
