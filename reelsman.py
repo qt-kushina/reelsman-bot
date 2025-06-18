@@ -14,6 +14,10 @@ from aiogram.utils.markdown import hbold
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiogram.client.session.aiohttp import AiohttpSession
 
+# ─── Imports for Dummy HTTP Server ──────────────────────────────────────────
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 # Configuration
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -322,6 +326,34 @@ async def create_app():
     
     return app, bot, dp
 
+# ─── Dummy HTTP Server for Deployment Compatibility ────────────────────────
+class DummyHandler(BaseHTTPRequestHandler):
+    """Simple HTTP handler for health checks and deployment compatibility"""
+
+    def do_GET(self):
+        """Handle GET requests"""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"Telegram bot is running and healthy!")
+
+    def do_HEAD(self):
+        """Handle HEAD requests"""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        """Suppress HTTP server logs"""
+        pass
+
+def start_dummy_server():
+    """Start HTTP server for deployment platform compatibility"""
+    port = int(os.environ.get("PORT", 8000))
+    server = HTTPServer(("0.0.0.0", port), DummyHandler)
+    print(f"🌐 HTTP server listening on port {port}")
+    server.serve_forever()
+
 async def main():
     """Main application entry point"""
     try:
@@ -340,6 +372,9 @@ async def main():
         raise
 
 if __name__ == "__main__":
+    # Start dummy HTTP server in background thread for deployment compatibility
+    threading.Thread(target=start_dummy_server, daemon=True).start()
+    
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
