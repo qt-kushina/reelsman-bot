@@ -89,7 +89,9 @@ async def get_direct_video_url(url: str) -> Optional[str]:
         'no_warnings': True,
         'skip_download': True,
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/91.0.4472.124 Safari/537.36',
         },
         'cookiefile': None,
         'extract_flat': False,
@@ -168,11 +170,9 @@ async def cmd_start(message: Message):
     user_id = message.from_user.id
     await save_user(user_id)
     
-    # Get bot info to access username
     bot_info = await message.bot.get_me()
     bot_username = bot_info.username
     
-    # Create inline keyboard
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="📢 Updates", url="https://t.me/WorkGlows"),
@@ -299,32 +299,21 @@ async def create_app():
     bot = Bot(token=BOT_TOKEN, session=session)
     dp = Dispatcher()
     
-    # Register middleware
     dp.message.middleware(LoggingMiddleware())
-    
-    # Register handlers
     dp.include_router(commands_router)
     dp.include_router(messages_router)
     
-    # Set bot commands
     await set_bot_commands(bot)
     
-    # Create aiohttp application
     app = web.Application()
-    
-    # Add health check routes
     app.router.add_get("/healthz", health_check)
     app.router.add_get("/health", health_check)
     
-    # Setup webhook handling
-    webhook_requests_handler = SimpleRequestHandler(
-        dispatcher=dp,
-        bot=bot
-    )
+    webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
     webhook_requests_handler.register(app, path="/webhook")
     setup_application(app, dp, bot=bot)
     
-    return app, bot, dp
+    return app
 
 # ─── Dummy HTTP Server for Deployment Compatibility ────────────────────────
 class DummyHandler(BaseHTTPRequestHandler):
@@ -349,35 +338,15 @@ class DummyHandler(BaseHTTPRequestHandler):
 
 def start_dummy_server():
     """Start HTTP server for deployment platform compatibility"""
-    port = int(os.environ.get("PORT", 8000))
-    server = HTTPServer(("0.0.0.0", port), DummyHandler)
-    print(f"🌐 HTTP server listening on port {port}")
+    server = HTTPServer(("0.0.0.0", WEBHOOK_PORT), DummyHandler)
+    logger.info(f"🌐 HTTP server listening on port {WEBHOOK_PORT}")
     server.serve_forever()
 
-async def main():
-    """Main application entry point"""
-    try:
-        app, bot, dp = await create_app()
-        
-        # Get bot info
-        bot_info = await bot.get_me()
-        logger.info(f"Bot started: @{bot_info.username}")
-        
-        # Start polling mode for easier deployment
-        logger.info("Starting bot in polling mode...")
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
-        
-    except Exception as e:
-        logger.error(f"Error starting bot: {e}")
-        raise
-
 if __name__ == "__main__":
-    # Start dummy HTTP server in background thread for deployment compatibility
+    # 1) Start dummy HTTP server so Render immediately sees an open port
     threading.Thread(target=start_dummy_server, daemon=True).start()
-    
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
+
+    # 2) Create the aiohttp app and run it on the same port
+    app = asyncio.get_event_loop().run_until_complete(create_app())
+    logger.info(f"🚀 Webhook app running on 0.0.0.0:{WEBHOOK_PORT}")
+    web.run_app(app, host="0.0.0.0", port=WEBHOOK_PORT)
